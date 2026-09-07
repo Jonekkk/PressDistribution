@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Parishes - Press Distribution</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+</head>
+<body class="bg-light">
+    <div th:replace="~{fragments/nav :: nav}"></div>
+    <div class="container mt-4">
+        <h2>Parishes</h2>
+
+        <div th:if="${successMessage}" class="alert alert-success" role="alert" th:text="${successMessage}">
+            Success message
+        </div>
+
+        <div class="mb-3">
+            <a th:href="@{/admin/parishes/new}" class="btn btn-primary">Create parish</a>
+        </div>
+
+        <div class="table-responsive">
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>Locality</th>
+                        <th>Parish name</th>
+                        <th>Address</th>
+                        <th>Edit</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr th:each="parish : ${parishes}">
+                        <td th:text="${parish.locality}">Locality</td>
+                        <td th:text="${parish.name}">Name</td>
+                        <td>
+                            <span th:if="${parish.address != null and !parish.address.isEmpty()}" th:text="${parish.address}">Address</span>
+                            <span th:if="${parish.address == null or parish.address.isEmpty()}">&mdash;</span>
+                        </td>
+                        <td>
+                            <a th:href="@{/admin/parishes/{id}/edit(id=${parish.id})}">Edit</a>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+<script th:replace="~{fragments/scripts :: bootstrap-js}"></script>
+</body>
+</html>

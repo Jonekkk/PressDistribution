@@ -1,0 +1,38 @@
+# Build outputs
+target
+
+# Version control
+.git
+.gitattributes
+.gitignore
+
+# IDE
+.idea
+*.iml
+
+# OS files
+.DS_Store
+
+# Secrets and environment files
+.env
+.env.*
+!.env.example
+
+# Local database data
+mysql-data
+
+# Docker Compose (not used on Heroku)
+docker-compose.yml
+
+# Documentation and scripts (not needed in image)
+docs
+scripts
+HELP.md
+README.md
+
+# Kiro IDE configuration
+.kiro
+
+# Maven wrapper (already in build image)
+.mvn
+mvnw.cmd

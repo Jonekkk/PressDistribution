@@ -1,0 +1,31 @@
+server:
+  port: ${PORT:8080}
+
+spring:
+  config:
+    import: optional:file:.env[.properties]
+
+  application:
+    name: PressDistribution
+
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://localhost:3306/press_distribution?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC}
+    username: ${SPRING_DATASOURCE_USERNAME:root}
+    password: ${SPRING_DATASOURCE_PASSWORD:}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+
+  flyway:
+    enabled: true
+
+app:
+  seed:
+    enabled: ${APP_SEED_ENABLED:false}
+  bootstrap-admin:
+    full-name: ${APP_BOOTSTRAP_ADMIN_FULL_NAME:}
+    email: ${APP_BOOTSTRAP_ADMIN_EMAIL:}
+    password: ${APP_BOOTSTRAP_ADMIN_PASSWORD:}

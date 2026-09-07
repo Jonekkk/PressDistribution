@@ -1,0 +1,101 @@
+@startuml
+title Press Distribution System Domain Model
+
+skinparam classAttributeIconSize 0
+skinparam classFontSize 12
+skinparam classAttributeFontSize 11
+skinparam linetype ortho
+skinparam nodesep 60
+skinparam ranksep 80
+
+hide empty methods
+
+enum UserRole <<enumeration>> {
+  ADMINISTRATOR
+  PARISH_PRIEST
+}
+
+class Parish {
+  id : Long <<PK>>
+  locality : String
+  name : String
+  address : String [0..1]
+  createdAt : LocalDateTime
+  updatedAt : LocalDateTime
+  --
+  <<UNIQUE>> (locality, name)
+}
+
+class User {
+  id : Long <<PK>>
+  fullName : String
+  email : String <<UNIQUE>>
+  phoneNumber : String [0..1]
+  passwordHash : String
+  recoveryCodeHash : String
+  role : UserRole
+  isActive : boolean
+  createdAt : LocalDateTime
+  updatedAt : LocalDateTime
+  --
+  <<CHECK>> PARISH_PRIEST \u2192 parish_id IS NOT NULL
+  <<CHECK>> ADMINISTRATOR \u2192 parish_id IS NULL
+}
+
+class Publication {
+  id : Long <<PK>>
+  name : String <<UNIQUE>>
+  createdAt : LocalDateTime
+  updatedAt : LocalDateTime
+}
+
+class Issue {
+  id : Long <<PK>>
+  issueNumber : String
+  publicationDate : LocalDate
+  unitPrice : BigDecimal
+  createdAt : LocalDateTime
+  updatedAt : LocalDateTime
+  --
+  <<UNIQUE>> (publication_id, issueNumber)
+  <<CHECK>> unitPrice > 0
+}
+
+class ParishIssueRecord {
+  id : Long <<PK>>
+  deliveredCopies : Integer
+  returnedCopies : Integer
+  paidAmount : BigDecimal
+  createdAt : LocalDateTime
+  updatedAt : LocalDateTime
+  --
+  <<UNIQUE>> (parish_id, issue_id)
+  <<CHECK>> deliveredCopies \u2265 0
+  <<CHECK>> returnedCopies \u2265 0
+  <<CHECK>> returnedCopies \u2264 deliveredCopies
+  <<CHECK>> paidAmount \u2265 0
+  ..
+  {method} soldCopies = deliveredCopies \u2212 returnedCopies
+  {method} amountDue = soldCopies \u00d7 unitPrice
+}
+
+class AuditLog {
+  id : Long <<PK>>
+  message : String
+  createdAt : LocalDateTime
+  --
+  Immutable entries (INSERT only)
+}
+
+' --- Relationships ---
+
+User "0..*" -- "0..1" Parish : parish_id >
+
+Issue "0..*" --* "1" Publication : publication_id >
+
+ParishIssueRecord "0..*" --* "1" Parish : parish_id >
+ParishIssueRecord "0..*" --* "1" Issue : issue_id >
+
+User ..> UserRole : role
+
+@enduml

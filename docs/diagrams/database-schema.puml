@@ -1,0 +1,121 @@
+@startuml
+title Schemat bazy danych (MySQL, migracja V1)
+
+skinparam linetype ortho
+skinparam nodesep 50
+skinparam ranksep 70
+
+hide circle
+hide empty methods
+
+' Legenda oznaczeń:
+' PK = klucz główny, FK = klucz obcy, U = ograniczenie UNIQUE, I = indeks
+
+entity "parishes" as parishes {
+  * id : BIGINT <<PK, AUTO_INCREMENT>>
+  --
+  * locality : VARCHAR(150)
+  * name : VARCHAR(255)
+    address : VARCHAR(500)
+  * created_at : DATETIME(6)
+  * updated_at : DATETIME(6)
+  --
+  UQ_parishes_locality_name (locality, name)
+}
+
+entity "publications" as publications {
+  * id : BIGINT <<PK, AUTO_INCREMENT>>
+  --
+  * name : VARCHAR(255)
+  * created_at : DATETIME(6)
+  * updated_at : DATETIME(6)
+  --
+  UQ_publications_name (name)
+}
+
+entity "users" as users {
+  * id : BIGINT <<PK, AUTO_INCREMENT>>
+  --
+  * full_name : VARCHAR(200)
+  * email : VARCHAR(254)
+    phone_number : VARCHAR(20)
+  * password_hash : VARCHAR(255)
+  * recovery_code_hash : VARCHAR(255)
+  * role : ENUM('ADMINISTRATOR','PARISH_PRIEST')
+    parish_id : BIGINT <<FK>>
+  * is_active : BOOLEAN <<DEFAULT TRUE>>
+  * created_at : DATETIME(6)
+  * updated_at : DATETIME(6)
+  --
+  UQ_users_email (email)
+  FK_users_parishes_parish_id -> parishes(id)
+  CHK_users_role_parish:
+    (PARISH_PRIEST AND parish_id IS NOT NULL)
+    OR (ADMINISTRATOR AND parish_id IS NULL)
+}
+
+entity "issues" as issues {
+  * id : BIGINT <<PK, AUTO_INCREMENT>>
+  --
+  * publication_id : BIGINT <<FK>>
+  * issue_number : VARCHAR(100)
+  * publication_date : DATE
+  * unit_price : DECIMAL(10,2)
+  * created_at : DATETIME(6)
+  * updated_at : DATETIME(6)
+  --
+  UQ_issues_publication_id_issue_number
+    (publication_id, issue_number)
+  FK_issues_publications_publication_id -> publications(id)
+  CHK_issues_unit_price_positive: unit_price > 0
+}
+
+entity "parish_issue_records" as records {
+  * id : BIGINT <<PK, AUTO_INCREMENT>>
+  --
+  * parish_id : BIGINT <<FK>>
+  * issue_id : BIGINT <<FK>>
+  * delivered_copies : INT <<DEFAULT 0>>
+  * returned_copies : INT <<DEFAULT 0>>
+  * paid_amount : DECIMAL(10,2) <<DEFAULT 0.00>>
+  * created_at : DATETIME(6)
+  * updated_at : DATETIME(6)
+  --
+  UQ_parish_issue_records_parish_id_issue_id
+    (parish_id, issue_id)
+  IDX_parish_issue_records_issue_id (issue_id)
+  FK_..._parishes_parish_id -> parishes(id)
+  FK_..._issues_issue_id -> issues(id)
+  CHK: delivered_copies >= 0
+  CHK: returned_copies >= 0
+  CHK: paid_amount >= 0.00
+  CHK: returned_copies <= delivered_copies
+}
+
+entity "audit_logs" as audit {
+  * id : BIGINT <<PK, AUTO_INCREMENT>>
+  --
+  * message : VARCHAR(1000)
+  * created_at : DATETIME(6)
+}
+
+' --- Relacje (klucze obce, ON DELETE/UPDATE RESTRICT) ---
+parishes ||--o{ users : "parish_id"
+publications ||--o{ issues : "publication_id"
+parishes ||--o{ records : "parish_id"
+issues ||--o{ records : "issue_id"
+
+note bottom of audit
+  Tabela bez kluczy obcych.
+  Wpisy tylko dodawane (append-only).
+end note
+
+note as engineNote
+  Wszystkie tabele:
+  ENGINE = InnoDB
+  CHARSET = utf8mb4
+  COLLATE = utf8mb4_unicode_ci
+  Klucze obce: ON DELETE RESTRICT, ON UPDATE RESTRICT
+end note
+
+@enduml

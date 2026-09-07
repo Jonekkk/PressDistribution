@@ -1,0 +1,126 @@
+@startuml
+title Report Generation and CSV Export with Access Control
+
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+skinparam maxMessageSize 220
+
+actor "Administrator" as Admin
+actor "Parish Priest" as Priest
+participant "Browser" as Browser
+participant "ReportController" as Controller
+participant "ReportService" as Service
+participant "ParishIssueRecord\nRepository" as RecordRepo
+participant "CsvExportUtil" as CsvUtil
+database "MySQL" as DB
+
+== Scenario 1: Administrator — Publication Report ==
+
+Admin -> Browser : Open publication report
+Browser -> Controller : GET /reports/publications\n(filter: dateFrom, dateTo,\npublicationId, issueId, parishId, page=0)
+
+Controller -> Controller : validatePublicationReportFilter()\n- dateFrom <= dateTo\n- issueId exists and belongs to publication\n- parishId exists
+
+alt Date range validation error
+  Controller --> Browser : Form with error message
+  Browser --> Admin : Empty report + validation error
+
+else Filters valid
+  Controller -> Service : getPublicationReport(filter, pageable)
+  Service -> RecordRepo : findPublicationReport(\ndateFrom, dateTo, publicationId,\nissueId, parishId, pageable)
+  RecordRepo -> DB : SELECT with pagination (LIMIT/OFFSET)\n+ JOIN issue, publication, parish
+  DB --> RecordRepo : Page<ParishIssueRecord>
+  Service -> Service : Map to ReportRowDto:\n- soldCopies = delivered - returned\n- amountDue = soldCopies x unitPrice\n- paidAmount (visible)
+  Service --> Controller : Page<ReportRowDto>
+
+  Controller -> Service : getPublicationReportTotals(filter)
+  Service -> RecordRepo : findPublicationReportAll(filter)
+  RecordRepo -> DB : SELECT all matching records\n(no pagination)
+  DB --> RecordRepo : List<ParishIssueRecord>
+  Service -> Service : computeTotals()\n(sums for ALL filtered records,\nnot just the current page)
+  Service --> Controller : ReportTotalsDto
+
+  Controller --> Browser : HTML table with pagination\n+ summary row\n+ "Paid amount" column
+  Browser --> Admin : Report with data + paidAmount
+end
+
+== Scenario 2: Administrator — Publication Report CSV Export ==
+
+Admin -> Browser : Click "Export CSV"
+Browser -> Controller : GET /reports/publications/export\n(same filters)
+
+Controller -> Controller : Validate filters
+Controller -> Service : getPublicationReportAll(filter)
+Service -> RecordRepo : findPublicationReportAll(filter)
+RecordRepo -> DB : SELECT all matching records\n(no pagination — full export)
+DB --> RecordRepo : List<ParishIssueRecord>
+Service -> Service : Map to List<ReportRowDto>
+Service --> Controller : List<ReportRowDto>
+
+Controller -> CsvUtil : writePublicationReportCsv(\nrows, includePaidAmount=true, response)
+CsvUtil -> CsvUtil : UTF-8 BOM (EF BB BF)
+CsvUtil -> CsvUtil : CSV header (with "Paid amount" column)
+CsvUtil -> CsvUtil : Data rows:\n- escapeCsvField() -> RFC 4180\n- formula injection protection\n  (prefix ' for =, +, -, @)
+CsvUtil --> Browser : Content-Type: text/csv; charset=UTF-8\nContent-Disposition: attachment;\n  filename="publication-report.csv"
+Browser --> Admin : CSV file download\n(with paidAmount column)
+
+== Scenario 3: Parish Priest — Own Parish Report ==
+
+Priest -> Browser : Open "My Parish Report"
+Browser -> Controller : GET /reports/my-parish\n(filter: dateFrom, dateTo, page=0)
+
+Controller -> Controller : resolveUser(principal)
+Controller -> Controller : requireParish(user)\n-> parish from user.getParish()
+
+alt User has no assigned parish
+  Controller --> Browser : HTTP 403 Forbidden
+  Browser --> Priest : Access denied
+
+else Parish assigned
+  Controller -> Controller : validateDateRange(dateFrom, dateTo)
+
+  Controller -> Service : getMyParishReport(parish.id, filter, pageable)
+  Service -> RecordRepo : findParishReport(\nparishId, dateFrom, dateTo, pageable)
+  note right : Query always filtered\nby parish priest's parish_id —\ncannot view another parish
+  RecordRepo -> DB : SELECT with pagination\nWHERE parish_id = ?\n+ JOIN issue, publication
+  DB --> RecordRepo : Page<ParishIssueRecord>
+  Service -> Service : Map to ReportRowDto
+  Service -> Service : stripPaidAmountFromReportRow()\n-> paidAmount = null
+  Service --> Controller : Page<ReportRowDto>\n(without paidAmount)
+
+  Controller -> Service : getMyParishReportTotals(parish.id, filter)
+  Service -> RecordRepo : findParishReportAll(parishId, dateFrom, dateTo)
+  RecordRepo -> DB : SELECT all parish records
+  DB --> RecordRepo : List<ParishIssueRecord>
+  Service -> Service : computeTotals()
+  Service -> Service : totals.setTotalPaidAmount(null)
+  Service --> Controller : ReportTotalsDto\n(totalPaidAmount = null)
+
+  Controller --> Browser : HTML table with pagination\n+ summary\n— WITHOUT "Paid amount" column
+  Browser --> Priest : Own parish report\n(paidAmount hidden)
+end
+
+== Scenario 4: Parish Priest — Own Parish CSV Export ==
+
+Priest -> Browser : Click "Export CSV"
+Browser -> Controller : GET /reports/my-parish/export\n(dateFrom, dateTo)
+
+Controller -> Controller : resolveUser + requireParish
+Controller -> Service : getMyParishReportAll(parish.id, filter)
+Service -> RecordRepo : findParishReportAll(parishId, dateFrom, dateTo)
+RecordRepo -> DB : SELECT all records\nWHERE parish_id = ?
+DB --> RecordRepo : List<ParishIssueRecord>
+Service -> Service : Map + stripPaidAmountFromReportRows()
+Service --> Controller : List<ReportRowDto>\n(paidAmount = null)
+
+Controller -> Service : getMyParishReportTotals(parish.id, filter)
+Service --> Controller : ReportTotalsDto (totalPaidAmount = null)
+
+Controller -> CsvUtil : writeParishReportCsv(\nrows, totals,\nincludePaidAmount=false, response)
+CsvUtil -> CsvUtil : UTF-8 BOM
+CsvUtil -> CsvUtil : CSV header (WITHOUT "Paid amount" column)
+CsvUtil -> CsvUtil : Rows + "Totals" row\n(RFC 4180 + formula injection protection)
+CsvUtil --> Browser : Content-Type: text/csv\nfilename="my-parish-report.csv"
+Browser --> Priest : CSV file download\n(WITHOUT paidAmount)
+
+@enduml

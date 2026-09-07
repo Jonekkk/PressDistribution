@@ -1,0 +1,84 @@
+@startuml
+title User Login and Failed Attempt Audit Logging
+
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+skinparam maxMessageSize 220
+
+actor "User" as User
+participant "Browser" as Browser
+participant "Spring Security\n(FormLogin)" as Security
+participant "CustomUserDetailsService" as UDS
+participant "UserRepository" as UserRepo
+participant "BCryptPasswordEncoder" as BCrypt
+participant "AuthenticationFailure\nAuditListener" as FailListener
+participant "AuditLogRepository" as AuditRepo
+database "MySQL" as DB
+
+== Login Form Submission ==
+
+User -> Browser : Enter email and password
+Browser -> Security : POST /login\n(email, password, CSRF token)
+
+Security -> UDS : loadUserByUsername(email)
+UDS -> UserRepo : findByEmail(email)
+UserRepo -> DB : SELECT * FROM users\nWHERE email = ?
+DB --> UserRepo : query result
+UserRepo --> UDS : Optional<User>
+
+alt User not found
+  UDS --> Security : UsernameNotFoundException\n("Invalid credentials")
+  Security -> FailListener : AbstractAuthenticationFailureEvent
+  FailListener -> AuditRepo : save(AuditLog)
+  AuditRepo -> DB : INSERT INTO audit_logs\n(message = "Sign-in failure: <email>")
+  DB --> AuditRepo : OK
+  Security --> Browser : Redirect /login?error
+  Browser --> User : Message: "Invalid email or password"
+
+else User found
+  UDS --> Security : UserDetails\n(email, passwordHash, ROLE_*, enabled)
+
+  Security -> Security : Check isActive\n(UserDetails.enabled)
+
+  alt Account inactive (isActive = false)
+    Security -> FailListener : DisabledAccountEvent
+    FailListener -> AuditRepo : save(AuditLog)
+    AuditRepo -> DB : INSERT INTO audit_logs
+    DB --> AuditRepo : OK
+    Security --> Browser : Redirect /login?error
+    Browser --> User : Message: "Invalid email or password"
+
+  else Account active
+    Security -> BCrypt : matches(formPassword, passwordHash)
+
+    alt Password incorrect
+      BCrypt --> Security : false
+      Security -> FailListener : BadCredentialsEvent
+      FailListener -> AuditRepo : save(AuditLog)
+      AuditRepo -> DB : INSERT INTO audit_logs\n(message = "Sign-in failure: <email>")
+      DB --> AuditRepo : OK
+      Security --> Browser : Redirect /login?error
+      Browser --> User : Message: "Invalid email or password"
+
+    else Password correct
+      BCrypt --> Security : true
+      Security -> Security : Create session\nand SecurityContext
+      Security --> Browser : Redirect to /\n(defaultSuccessUrl)
+      Browser --> User : Home page (dashboard)
+    end
+  end
+end
+
+note over FailListener
+  The listener never logs the password
+  or failure details —
+  the message contains only the email.
+end note
+
+note over Browser
+  The error message is generic —
+  it does not reveal whether the email
+  exists in the system.
+end note
+
+@enduml

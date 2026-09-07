@@ -1,0 +1,141 @@
+@startuml
+title Bulk Entry of Parish Issue Records
+
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+skinparam maxMessageSize 220
+
+actor "Administrator" as Admin
+participant "Browser" as Browser
+participant "BulkRecordController" as Controller
+participant "BulkEntryService" as Service
+participant "IssueRepository" as IssueRepo
+participant "ParishRepository" as ParishRepo
+participant "ParishIssueRecord\nRepository" as RecordRepo
+participant "AuditLogRepository" as AuditRepo
+database "MySQL" as DB
+
+note over Admin
+  Access restricted to
+  ROLE_ADMINISTRATOR only
+  (SecurityConfig: /admin/records/bulk/**)
+end note
+
+== Navigation and Form Display ==
+
+Admin -> Browser : Select "Bulk Entry" option
+Browser -> Controller : GET /admin/records/bulk
+Controller -> IssueRepo : findAllSortedForList()
+IssueRepo -> DB : SELECT issues + publications
+DB --> IssueRepo : issue list
+Controller --> Browser : Page with issue selector
+Browser --> Admin : Dropdown with issue list
+
+Admin -> Browser : Select an issue
+Browser -> Controller : GET /admin/records/bulk?issueId={id}
+Controller -> IssueRepo : findByIdWithPublication(issueId)
+IssueRepo -> DB : SELECT issue + publication
+DB --> IssueRepo : Issue
+
+Controller -> ParishRepo : findAllSortedByLocalityAndName()
+ParishRepo -> DB : SELECT * FROM parishes ORDER BY...
+DB --> ParishRepo : parish list
+
+Controller -> RecordRepo : findByIssueIdWithParish(issueId)
+RecordRepo -> DB : SELECT parish_issue_records\nWHERE issue_id = ? (+ JOIN parish)
+DB --> RecordRepo : existing records
+
+Controller -> Controller : Build table rows:\n- each parish = 1 row\n- pre-fill from existing records\n- empty fields for new entries
+Controller --> Browser : Table with all parishes\n(deliveredCopies, returnedCopies, paidAmount)
+Browser --> Admin : Bulk entry form
+
+== Editing and Submitting Data ==
+
+Admin -> Browser : Modify rows\n(change values, empty = no change)
+Browser -> Controller : POST /admin/records/bulk\n(issueId, rows[] list\n with parishId, delivered, returned, paidAmount)
+
+Controller -> Service : saveBulk(issueId, rows)
+
+== Processing in Service (@Transactional) ==
+
+Service -> IssueRepo : findByIdWithPublication(issueId)
+IssueRepo -> DB : SELECT issue
+DB --> IssueRepo : Issue
+
+alt Issue does not exist
+  Service --> Controller : BulkValidationResult\n(success=false, globalError)
+  Controller --> Browser : Table with error message
+  Browser --> Admin : Message: "Issue does not exist"
+
+else Issue exists
+
+  Service -> Service : validateRowIdentities(rows)\n(check parishId != null)
+
+  alt Row identity errors
+    Service --> Controller : BulkValidationResult\n(success=false, rowErrors)
+    Controller --> Browser : Table with marked errors
+    Browser --> Admin : Form with per-row errors
+
+  else Identity OK
+
+    Service -> ParishRepo : findById() for each parishId
+    ParishRepo -> DB : SELECT parishes
+    DB --> ParishRepo : Parish entities
+
+    Service -> RecordRepo : findByIssueIdWithParish(issueId)
+    RecordRepo -> DB : SELECT existing records
+    DB --> RecordRepo : Map<parishId, Record>
+
+    Service -> Service : detectChangedRows(rows, existing)\n- empty row \u2192 skip\n- row identical to existing \u2192 skip\n- row changed or new \u2192 add to list
+
+    alt No changed rows
+      Service --> Controller : BulkValidationResult\n(success=true, created=0, updated=0)
+      Controller --> Browser : Redirect with success message
+      Browser --> Admin : "Bulk entry saved successfully"
+
+    else Changed rows present
+
+      Service -> Service : validateChangedRows(changedRows)\n- deliveredCopies \u2265 0\n- returnedCopies \u2265 0\n- returnedCopies \u2264 deliveredCopies\n- paidAmount \u2265 0
+
+      alt Validation errors
+        Service --> Controller : BulkValidationResult\n(success=false, rowErrors)
+        note right : Transaction rollback \u2014\nno data was saved
+        Controller --> Browser : Table with marked\nper-row errors
+        Browser --> Admin : Form with errors
+
+      else Validation OK \u2014 save
+
+        loop For each changed row
+
+          alt Existing record (UPDATE)
+            Service -> RecordRepo : save(existing record\nwith new values)
+            RecordRepo -> DB : UPDATE parish_issue_records\nSET delivered=?, returned=?, paid=?
+            DB --> RecordRepo : OK
+          else New record (INSERT)
+            Service -> RecordRepo : save(new ParishIssueRecord)
+            RecordRepo -> DB : INSERT INTO parish_issue_records
+            DB --> RecordRepo : OK
+          end
+
+          Service -> AuditRepo : save(AuditLog)
+          AuditRepo -> DB : INSERT INTO audit_logs\n(message = "Parish issue record\ncreated/updated: <parish> - <issue>")
+          DB --> AuditRepo : OK
+
+        end
+
+        note over Service, DB
+          Entire operation in a single transaction.
+          Commit only after all changed rows
+          have been saved.
+        end note
+
+        Service --> Controller : BulkValidationResult\n(success=true, created=N, updated=M)
+        Controller --> Browser : Redirect /admin/records/bulk\n+ flash "Bulk entry saved successfully"
+        Browser --> Admin : Success message
+
+      end
+    end
+  end
+end
+
+@enduml

@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title th:text="${editMode} ? 'Edit User - Press Distribution' : 'Create User - Press Distribution'">User Form - Press Distribution</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+</head>
+<body class="bg-light">
+    <div th:replace="~{fragments/nav :: nav}"></div>
+    <div class="container mt-4">
+        <h2 th:text="${editMode} ? 'Edit User' : 'Create User'">User Form</h2>
+
+        <div th:if="${globalError}" class="alert alert-danger" th:text="${globalError}"></div>
+
+        <div class="row">
+            <div class="col-md-6">
+
+                <!-- Create mode form -->
+                <form th:if="${!editMode}" th:object="${createUserForm}" method="post" th:action="@{/admin/users}"
+                      id="createUserFormEl" novalidate>
+
+                    <!-- Server returned validation error: inform user about password re-entry -->
+                    <div th:if="${#fields.hasAnyErrors()}" class="alert alert-warning" role="alert">
+                        A validation error occurred. For security reasons, please enter the password again.
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="fullName" class="form-label">Full name *</label>
+                        <input type="text" id="fullName" th:field="*{fullName}"
+                               class="form-control"
+                               th:classappend="${#fields.hasErrors('fullName')} ? 'is-invalid'"
+                               required maxlength="200">
+                        <span th:if="${#fields.hasErrors('fullName')}" th:errors="*{fullName}" class="text-danger small"></span>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="email" class="form-label">Email *</label>
+                        <input type="email" id="email" th:field="*{email}"
+                               class="form-control"
+                               th:classappend="${#fields.hasErrors('email')} ? 'is-invalid'"
+                               required maxlength="254">
+                        <span th:if="${#fields.hasErrors('email')}" th:errors="*{email}" class="text-danger small"></span>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="phoneNumber" class="form-label">Phone number</label>
+                        <input type="text" id="phoneNumber" th:field="*{phoneNumber}"
+                               class="form-control"
+                               th:classappend="${#fields.hasErrors('phoneNumber')} ? 'is-invalid'"
+                               maxlength="20">
+                        <span th:if="${#fields.hasErrors('phoneNumber')}" th:errors="*{phoneNumber}" class="text-danger small"></span>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="role" class="form-label">Role *</label>
+                        <select id="role" th:field="*{role}" class="form-select"
+                                th:classappend="${#fields.hasErrors('role')} ? 'is-invalid'"
+                                required>
+                            <option value="">-- Select role --</option>
+                            <option th:each="r : ${T(com.example.pressdistribution.model.UserRole).values()}"
+                                    th:value="${r}" th:text="${r.name() == 'ADMINISTRATOR' ? 'Administrator' : 'Parish Priest'}"></option>
+                        </select>
+                        <span th:if="${#fields.hasErrors('role')}" th:errors="*{role}" class="text-danger small"></span>
+                    </div>
+
+                    <div class="mb-3" id="parishGroup">
+                        <label for="parishId" class="form-label">Parish</label>
+                        <select id="parishId" th:field="*{parishId}" class="form-select"
+                                th:classappend="${#fields.hasErrors('parishId')} ? 'is-invalid'">
+                            <option value="">-- Select parish --</option>
+                            <option th:each="p : ${parishes}"
+                                    th:value="${p.id}"
+                                    th:text="${p.locality + ' - ' + p.name}"></option>
+                        </select>
+                        <span th:if="${#fields.hasErrors('parishId')}" th:errors="*{parishId}" class="text-danger small"></span>
+                        <small id="parishHint" class="form-text text-muted">Required for the Parish Priest role.</small>
+                    </div>
+
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" id="active" th:field="*{active}" class="form-check-input">
+                        <label for="active" class="form-check-label">Active</label>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="password" class="form-label">Password *</label>
+                        <div class="input-group">
+                            <input type="password" id="password" name="password"
+                                   th:value="${createUserForm.password}"
+                                   class="form-control"
+                                   th:classappend="${#fields.hasErrors('password')} ? 'is-invalid'"
+                                   required minlength="8">
+                            <button type="button" id="togglePassword" class="btn btn-outline-secondary btn-sm">Show password</button>
+                        </div>
+                        <span th:if="${#fields.hasErrors('password')}" th:errors="*{password}" class="text-danger small"></span>
+                        <div class="mt-2">
+                            <button type="submit"
+                                    formaction="/admin/users/generate-password"
+                                    formmethod="post"
+                                    formnovalidate
+                                    class="btn btn-outline-primary btn-sm">Generate Password</button>
+                        </div>
+                    </div>
+
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary" id="createUserSubmitBtn">Save</button>
+                        <a th:href="@{/admin/users}" class="btn btn-secondary">Cancel</a>
+                    </div>
+                </form>
+
+                <!-- Edit mode form -->
+                <form th:if="${editMode}" th:object="${userForm}" method="post" th:action="@{/admin/users/{id}(id=${userId})}">
+
+                    <div class="mb-3">
+                        <label for="editFullName" class="form-label">Full name *</label>
+                        <input type="text" id="editFullName" th:field="*{fullName}"
+                               class="form-control"
+                               th:classappend="${#fields.hasErrors('fullName')} ? 'is-invalid'">
+                        <span th:if="${#fields.hasErrors('fullName')}" th:errors="*{fullName}" class="text-danger small"></span>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="editEmail" class="form-label">Email *</label>
+                        <input type="text" id="editEmail" th:field="*{email}"
+                               class="form-control"
+                               th:classappend="${#fields.hasErrors('email')} ? 'is-invalid'">
+                        <span th:if="${#fields.hasErrors('email')}" th:errors="*{email}" class="text-danger small"></span>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="editPhoneNumber" class="form-label">Phone number</label>
+                        <input type="text" id="editPhoneNumber" th:field="*{phoneNumber}"
+                               class="form-control"
+                               th:classappend="${#fields.hasErrors('phoneNumber')} ? 'is-invalid'">
+                        <span th:if="${#fields.hasErrors('phoneNumber')}" th:errors="*{phoneNumber}" class="text-danger small"></span>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="editRole" class="form-label">Role *</label>
+                        <select id="editRole" th:field="*{role}" class="form-select"
+                                th:classappend="${#fields.hasErrors('role')} ? 'is-invalid'">
+                            <option value="">-- Select role --</option>
+                            <option th:each="r : ${T(com.example.pressdistribution.model.UserRole).values()}"
+                                    th:value="${r}" th:text="${r.name() == 'ADMINISTRATOR' ? 'Administrator' : 'Parish Priest'}"></option>
+                        </select>
+                        <span th:if="${#fields.hasErrors('role')}" th:errors="*{role}" class="text-danger small"></span>
+                    </div>
+
+                    <div class="mb-3" id="editParishGroup">
+                        <label for="editParishId" class="form-label">Parish</label>
+                        <select id="editParishId" th:field="*{parishId}" class="form-select"
+                                th:classappend="${#fields.hasErrors('parishId')} ? 'is-invalid'">
+                            <option value="">-- Select parish --</option>
+                            <option th:each="p : ${parishes}"
+                                    th:value="${p.id}"
+                                    th:text="${p.locality + ' - ' + p.name}"></option>
+                        </select>
+                        <span th:if="${#fields.hasErrors('parishId')}" th:errors="*{parishId}" class="text-danger small"></span>
+                    </div>
+
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" id="editActive" th:field="*{active}" class="form-check-input">
+                        <label for="editActive" class="form-check-label">Active</label>
+                    </div>
+
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary">Save</button>
+                        <a th:href="@{/admin/users}" class="btn btn-secondary">Cancel</a>
+                    </div>
+                </form>
+
+                <div th:if="${editMode}" class="mt-3">
+                    <a th:href="@{/admin/users/{id}/password-reset(id=${userId})}" class="btn btn-outline-warning btn-sm">Reset Password</a>
+                    <form th:action="@{/admin/users/{id}/recovery-code-reset(id=${userId})}" method="post" class="d-inline">
+                        <button type="submit" class="btn btn-outline-warning btn-sm">Reset Recovery Code</button>
+                    </form>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <script th:if="${!editMode}">
+    document.getElementById('togglePassword').addEventListener('click', function() {
+        var field = document.getElementById('password');
+        field.type = field.type === 'password' ? 'text' : 'password';
+        this.textContent = field.type === 'password' ? 'Show password' : 'Hide password';
+    });
+
+    // Browser-side validation for non-secret fields to prevent unnecessary server round-trips
+    // that would clear the password field.
+    document.getElementById('createUserFormEl').addEventListener('submit', function(e) {
+        // Skip validation for generate-password button (has formnovalidate)
+        if (e.submitter && e.submitter.hasAttribute('formnovalidate')) {
+            return;
+        }
+
+        var form = this;
+        var errors = [];
+
+        var fullName = form.querySelector('#fullName');
+        var email = form.querySelector('#email');
+        var role = form.querySelector('#role');
+        var password = form.querySelector('#password');
+        var parishId = form.querySelector('#parishId');
+
+        // Clear previous custom validity
+        [fullName, email, role, password].forEach(function(el) {
+            el.setCustomValidity('');
+            el.classList.remove('is-invalid');
+        });
+
+        // Full name required
+        if (!fullName.value.trim()) {
+            fullName.setCustomValidity('Full name is required');
+            fullName.classList.add('is-invalid');
+            errors.push(fullName);
+        }
+
+        // Email required and basic format
+        if (!email.value.trim()) {
+            email.setCustomValidity('Email is required');
+            email.classList.add('is-invalid');
+            errors.push(email);
+        } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.value.trim())) {
+            email.setCustomValidity('Email must be a valid email address');
+            email.classList.add('is-invalid');
+            errors.push(email);
+        }
+
+        // Role required
+        if (!role.value) {
+            role.setCustomValidity('Role is required');
+            role.classList.add('is-invalid');
+            errors.push(role);
+        }
+
+        // Parish required for Parish Priest
+        if (role.value === 'PARISH_PRIEST' && !parishId.value) {
+            parishId.setCustomValidity('Parish is required for the Parish Priest role');
+            parishId.classList.add('is-invalid');
+            errors.push(parishId);
+        }
+
+        // Password required
+        if (!password.value) {
+            password.setCustomValidity('Password is required');
+            password.classList.add('is-invalid');
+            errors.push(password);
+        } else if (password.value.length < 8) {
+            password.setCustomValidity('Password must be at least 8 characters');
+            password.classList.add('is-invalid');
+            errors.push(password);
+        }
+
+        if (errors.length > 0) {
+            e.preventDefault();
+            errors[0].focus();
+        }
+    });
+    </script>
+
+    <script>
+    (function() {
+        var roleSelect = document.getElementById('role') || document.getElementById('editRole');
+        var parishGroup = document.getElementById('parishGroup') || document.getElementById('editParishGroup');
+        var parishSelect = document.getElementById('parishId') || document.getElementById('editParishId');
+        var parishHint = document.getElementById('parishHint');
+
+        if (roleSelect && parishGroup && parishSelect) {
+            function toggleParish() {
+                if (roleSelect.value === 'ADMINISTRATOR') {
+                    parishGroup.style.display = 'none';
+                    parishSelect.value = '';
+                } else {
+                    parishGroup.style.display = 'block';
+                }
+                // Toggle hint visibility
+                if (parishHint) {
+                    parishHint.style.display = (roleSelect.value === 'PARISH_PRIEST') ? 'block' : 'none';
+                }
+            }
+            roleSelect.addEventListener('change', toggleParish);
+            toggleParish();
+        }
+    })();
+    </script>
+<script th:replace="~{fragments/scripts :: bootstrap-js}"></script>
+</body>
+</html>

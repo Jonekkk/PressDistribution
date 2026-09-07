@@ -1,0 +1,92 @@
+Project press_distribution_management {
+  database_type: 'MySQL'
+  Note: 'Database schema for parish press distribution management.'
+}
+
+Enum user_role {
+  ADMINISTRATOR
+  PARISH_PRIEST
+}
+
+Table parishes {
+  id bigint [pk, increment]
+  locality varchar(150) [not null, note: 'City, town or locality']
+  name varchar(255) [not null, note: 'Parish dedication or distribution outlet name']
+  address varchar(500) [note: 'Optional']
+  created_at datetime [not null]
+  updated_at datetime [not null]
+
+  Indexes {
+    (locality, name) [unique]
+  }
+}
+
+Table users {
+  id bigint [pk, increment]
+  full_name varchar(200) [not null, note: 'One field; permits titles such as ks. Jan Kowalski']
+  email varchar(254) [not null, unique]
+  phone_number varchar(20) [note: 'Optional phone number']
+  password_hash varchar(255) [not null]
+  recovery_code_hash varchar(255) [not null, note: 'Hash of the current single-use recovery code']
+  role user_role [not null]
+  parish_id bigint [null, note: 'Required for PARISH_PRIEST; empty for an ADMINISTRATOR']
+  is_active boolean [not null, default: true]
+  created_at datetime [not null]
+  updated_at datetime [not null]
+
+  checks {
+    `(
+      (role = 'PARISH_PRIEST' AND parish_id IS NOT NULL)
+      OR
+      (role = 'ADMINISTRATOR' AND parish_id IS NULL)
+    )` [name: 'CHK_users_role_parish']
+  }
+}
+
+Table publications {
+  id bigint [pk, increment]
+  name varchar(255) [not null, unique]
+  created_at datetime [not null]
+  updated_at datetime [not null]
+}
+
+Table issues {
+  id bigint [pk, increment]
+  publication_id bigint [not null]
+  issue_number varchar(100) [not null, note: 'Allows letters, digits, spaces and slashes, e.g. 12/2025']
+  publication_date date [not null]
+  unit_price decimal(10,2) [not null, note: 'Price of one copy for this specific issue']
+  created_at datetime [not null]
+  updated_at datetime [not null]
+
+  Indexes {
+    (publication_id, issue_number) [unique]
+  }
+}
+
+Table parish_issue_records {
+  id bigint [pk, increment]
+  parish_id bigint [not null]
+  issue_id bigint [not null]
+  delivered_copies int [not null, default: 0, note: 'Received copies / delivery quantity']
+  returned_copies int [not null, default: 0, note: 'Unsold copies returned by the parish']
+  paid_amount decimal(10,2) [not null, default: 0.00, note: 'Total amount paid by the parish for this issue']
+  created_at datetime [not null]
+  updated_at datetime [not null]
+
+  Indexes {
+    (parish_id, issue_id) [unique, note: 'Exactly one record per parish and issue']
+    (issue_id)
+  }
+}
+
+Table audit_logs {
+  id bigint [pk, increment]
+  message varchar(1000) [not null]
+  created_at datetime [not null]
+}
+
+Ref: users.parish_id > parishes.id
+Ref: issues.publication_id > publications.id
+Ref: parish_issue_records.parish_id > parishes.id
+Ref: parish_issue_records.issue_id > issues.id

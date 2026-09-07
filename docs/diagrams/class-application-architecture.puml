@@ -1,0 +1,160 @@
+@startuml
+title Layered Application Architecture
+
+skinparam classAttributeIconSize 0
+skinparam classFontSize 11
+skinparam classAttributeFontSize 10
+skinparam packageFontSize 12
+skinparam nodesep 40
+skinparam ranksep 50
+skinparam linetype ortho
+
+hide empty members
+
+' ============ WEB LAYER (Controllers) ============
+package "controller" as web <<Rectangle>> {
+  class UserManagementController
+  class ProfileController
+  class ParishController
+  class PublicationController
+  class IssueController
+  class SharedIssueController
+  class RecordController
+  class BulkRecordController
+  class ReportController
+  class RecoveryLoginController
+  class LoginController
+  class HomeController
+}
+
+' ============ SECURITY LAYER ============
+package "security" as sec <<Rectangle>> {
+  class SecurityConfig {
+    securityFilterChain(HttpSecurity) : SecurityFilterChain
+    passwordEncoder() : PasswordEncoder
+  }
+  class CustomUserDetailsService {
+    loadUserByUsername(email) : UserDetails
+  }
+  class AuthenticationFailureAuditListener {
+    onAuthenticationFailure(event) : void
+  }
+}
+
+' ============ SERVICE LAYER ============
+package "service" as svc <<Rectangle>> {
+  class UserManagementService
+  class ProfileService
+  class ParishService
+  class PublicationService
+  class IssueService
+  class ParishIssueRecordService
+  class BulkEntryService
+  class ReportService
+  class RecoveryLoginService
+  class CredentialGeneratorService
+}
+
+' ============ REPOSITORY LAYER ============
+package "repository" as repo <<Rectangle>> {
+  interface UserRepository
+  interface ParishRepository
+  interface PublicationRepository
+  interface IssueRepository
+  interface ParishIssueRecordRepository
+  interface AuditLogRepository
+}
+
+' ============ DOMAIN LAYER ============
+package "model" as domain <<Rectangle>> {
+  class User
+  class Parish
+  class Publication
+  class Issue
+  class ParishIssueRecord
+  class AuditLog
+}
+
+' ============ CONFIGURATION / INITIALIZATION ============
+package "config" as cfg <<Rectangle>> {
+  class BootstrapAdminInitializer
+  class SeedDataInitializer
+}
+
+' ============ PERSISTENCE LAYER ============
+package "persistence" as persist <<Rectangle>> {
+  class "Flyway (SQL migrations)" as Flyway <<infrastructure>>
+  class "MySQL 8.4" as MySQL <<database>>
+}
+
+' ============ EXPORT UTILITIES ============
+package "dto" as dtoLayer <<Rectangle>> {
+  class CsvExportUtil
+}
+
+' --- Dependencies: Controller -> Service ---
+UserManagementController --> UserManagementService
+ProfileController --> ProfileService
+ParishController --> ParishService
+PublicationController --> PublicationService
+IssueController --> IssueService
+SharedIssueController --> IssueService
+RecordController --> ParishIssueRecordService
+BulkRecordController --> BulkEntryService
+ReportController --> ReportService
+RecoveryLoginController --> RecoveryLoginService
+
+' --- Dependencies: Service -> Repository ---
+UserManagementService --> UserRepository
+UserManagementService --> ParishRepository
+UserManagementService --> AuditLogRepository
+ProfileService --> UserRepository
+ProfileService --> AuditLogRepository
+ParishService --> ParishRepository
+ParishService --> AuditLogRepository
+PublicationService --> PublicationRepository
+PublicationService --> AuditLogRepository
+IssueService --> IssueRepository
+IssueService --> PublicationRepository
+IssueService --> ParishIssueRecordRepository
+IssueService --> AuditLogRepository
+ParishIssueRecordService --> ParishIssueRecordRepository
+ParishIssueRecordService --> ParishRepository
+ParishIssueRecordService --> IssueRepository
+ParishIssueRecordService --> AuditLogRepository
+BulkEntryService --> ParishIssueRecordRepository
+BulkEntryService --> ParishRepository
+BulkEntryService --> IssueRepository
+BulkEntryService --> AuditLogRepository
+ReportService --> ParishIssueRecordRepository
+RecoveryLoginService --> UserRepository
+RecoveryLoginService --> AuditLogRepository
+
+' --- Security ---
+SecurityConfig --> CustomUserDetailsService
+CustomUserDetailsService --> UserRepository
+AuthenticationFailureAuditListener --> AuditLogRepository
+
+' --- Config ---
+BootstrapAdminInitializer --> UserRepository
+SeedDataInitializer --> ParishRepository
+SeedDataInitializer --> PublicationRepository
+SeedDataInitializer --> IssueRepository
+SeedDataInitializer --> ParishIssueRecordRepository
+
+' --- Repository -> Entity (JPA abstraction) ---
+UserRepository ..> User
+ParishRepository ..> Parish
+PublicationRepository ..> Publication
+IssueRepository ..> Issue
+ParishIssueRecordRepository ..> ParishIssueRecord
+AuditLogRepository ..> AuditLog
+
+' --- CSV Export ---
+ReportController --> CsvExportUtil
+
+' --- Persistence ---
+Flyway --> MySQL : manages schema
+repo --> MySQL : JDBC
+
+@enduml

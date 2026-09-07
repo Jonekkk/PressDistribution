@@ -1,0 +1,11 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<body>
+    <div th:fragment="issueOptions">
+        <option value="">All issues</option>
+        <option th:each="issue : ${issues}"
+                th:value="${issue.id}"
+                th:text="${issue.publication.name + ' #' + issue.issueNumber}">Issue</option>
+    </div>
+</body>
+</html>

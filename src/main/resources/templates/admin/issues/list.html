@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Issues - Press Distribution</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+</head>
+<body class="bg-light">
+    <div th:replace="~{fragments/nav :: nav}"></div>
+    <div class="container mt-4">
+        <h2>Issues</h2>
+        <div th:if="${successMessage}" class="alert alert-success" role="alert" th:text="${successMessage}">
+            Success message
+        </div>
+        <div th:if="${errorMessage}" class="alert alert-danger" role="alert" th:text="${errorMessage}">
+            Error message
+        </div>
+        <div class="mb-3 d-flex flex-wrap align-items-end gap-3">
+            <a th:href="@{/admin/issues/new}" class="btn btn-primary">Create issue</a>
+            <form th:action="@{/admin/issues}" method="get" class="d-flex align-items-end gap-2">
+                <div>
+                    <label for="publicationFilter" class="form-label mb-0 small">Publication</label>
+                    <select id="publicationFilter" name="publicationId" class="form-select form-select-sm" onchange="this.form.submit()">
+                        <option value="">All publications</option>
+                        <option th:each="pub : ${publications}"
+                                th:value="${pub.id}"
+                                th:text="${pub.name}"
+                                th:selected="${pub.id == selectedPublicationId}">Publication</option>
+                    </select>
+                </div>
+            </form>
+        </div>
+        <div th:if="${#lists.isEmpty(issues)}" class="alert alert-info" role="alert">
+            No issues found for the selected publication.
+        </div>
+        <div th:unless="${#lists.isEmpty(issues)}" class="table-responsive">
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>Publication</th>
+                        <th>Issue number</th>
+                        <th>Publication date</th>
+                        <th>Unit price</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr th:each="issue : ${issues}">
+                        <td th:text="${issue.publication.name}">Publication Name</td>
+                        <td th:text="${issue.issueNumber}">Issue Number</td>
+                        <td th:text="${issue.publicationDate}">2024-01-01</td>
+                        <td th:text="${#numbers.formatDecimal(issue.unitPrice, 1, 2)}">1.50</td>
+                        <td>
+                            <a th:href="@{/records/new(issueId=${issue.id})}" class="btn btn-sm btn-outline-success">Create record</a>
+                            <a th:href="@{/admin/issues/{id}/edit(id=${issue.id})}" class="btn btn-sm btn-outline-primary">Edit</a>
+                            <a th:href="@{/admin/issues/{id}/delete(id=${issue.id})}" class="btn btn-sm btn-outline-danger">Delete</a>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+<script th:replace="~{fragments/scripts :: bootstrap-js}"></script>
+</body>
+</html>

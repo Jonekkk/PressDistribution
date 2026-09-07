@@ -1,0 +1,11 @@
+[
+  {
+    "parishLocality": "Testville",
+    "parishName": "St. Test Parish",
+    "publicationName": "Test Gazette",
+    "issueNumber": "2024/01",
+    "deliveredCopies": 10,
+    "returnedCopies": 15,
+    "paidAmount": 5.00
+  }
+]
