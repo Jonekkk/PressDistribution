@@ -1,5 +1,11 @@
 # Press Distribution
 
+Link to the deployed application: https://press-distribution-08d470795d0a.herokuapp.com/login
+
+Admin login credentials:
+admin@test.com
+Pass1234!
+
 ## Configuration Status
 
 - ✅ **MySQL for Flyway** - `flyway-mysql` dependency in pom.xml
